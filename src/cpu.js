@@ -1,4 +1,6 @@
 
+import { ALU8Bit } from "./alu.js";
+
 export class CPU8Bit {
   constructor() {
     this.registers = {
@@ -11,11 +13,8 @@ export class CPU8Bit {
     this.memory = new Uint8Array(256);
     this.PC = 0;
 
-    this.flags = {
-      zero: false,
-      carry: false,
-      negative: false
-    };
+    this.alu = new ALU8Bit();
+    this.flags = this.alu.flags;
 
     this.halted = false;
     this.output = [];
@@ -33,12 +32,16 @@ export class CPU8Bit {
     this.registers[name] = value;
   }
 
-  updateFlags(result, carry = false) {
-    const value = result & 255;
+  checkAddress(address) {
+    if (!Number.isInteger(address) || address < 0 || address > 255) {
+      throw new Error(`Endereço inválido: ${address}`);
+    }
+  }
 
-    this.flags.zero = value === 0;
-    this.flags.carry = carry;
-    this.flags.negative = (value & 128) !== 0;
+  checkRegister(name) {
+    if (!(name in this.registers)) {
+      throw new Error(`Registrador inválido: ${name}`);
+    }
   }
 
   step(program) {
@@ -53,63 +56,130 @@ export class CPU8Bit {
     this.PC++;
 
     const [op, ...args] = instruction;
+    let result;
 
     switch (op) {
       case "LOAD": {
         const [register, value] = args;
         this.setRegister(register, value);
-        this.updateFlags(value);
+        result = this.alu.execute("ADD", value, 0);
+        Object.assign(this.flags, result.flags);
         break;
       }
 
-      case "ADD": {
+      case "ADD":
+      case "SUB":
+      case "AND":
+      case "OR":
+      case "XOR": {
         const [dest, a, b] = args;
-        const result = this.registers[a] + this.registers[b];
 
-        this.registers[dest] = result & 255;
-        this.updateFlags(result, result > 255);
+        this.checkRegister(dest);
+        this.checkRegister(a);
+        this.checkRegister(b);
+
+        result = this.alu.execute(
+          op,
+          this.registers[a],
+          this.registers[b]
+        );
+
+        this.setRegister(dest, result.result);
+        Object.assign(this.flags, result.flags);
         break;
       }
 
-      case "SUB": {
-        const [dest, a, b] = args;
-        const result = this.registers[a] - this.registers[b];
+      case "NOT": {
+        const [dest, a] = args;
 
-        this.registers[dest] = result & 255;
-        this.updateFlags(result, result >= 0);
+        this.checkRegister(dest);
+        this.checkRegister(a);
+
+        result = this.alu.execute(
+          "NOT",
+          this.registers[a]
+        );
+
+        this.setRegister(dest, result.result);
+        Object.assign(this.flags, result.flags);
+        break;
+      }
+
+      case "CMP": {
+        const [a, b] = args;
+
+        this.checkRegister(a);
+        this.checkRegister(b);
+
+        result = this.alu.execute(
+          "CMP",
+          this.registers[a],
+          this.registers[b]
+        );
+
+        Object.assign(this.flags, result.flags);
         break;
       }
 
       case "STORE": {
         const [address, register] = args;
+
         this.checkAddress(address);
+        this.checkRegister(register);
+
         this.memory[address] = this.registers[register];
         break;
       }
 
       case "LOADM": {
         const [register, address] = args;
+
         this.checkAddress(address);
-        this.registers[register] = this.memory[address];
-        this.updateFlags(this.registers[register]);
+        this.checkRegister(register);
+
+        this.setRegister(register, this.memory[address]);
+
+        result = this.alu.execute(
+          "ADD",
+          this.memory[address],
+          0
+        );
+
+        Object.assign(this.flags, result.flags);
         break;
       }
 
       case "PRINT": {
         const [register] = args;
+
+        this.checkRegister(register);
         this.output.push(this.registers[register]);
         break;
       }
 
       case "JMP": {
-        this.PC = args[0];
+        const [address] = args;
+
+        if (!Number.isInteger(address) ||
+            address < 0 || address >= program.length) {
+          throw new Error("Destino de salto inválido.");
+        }
+
+        this.PC = address;
         break;
       }
 
       case "JZ": {
         const [register, address] = args;
 
-        if (this.registers[register] === 0) {
+        this.checkRegister(register);
+
+        if (!Number.isInteger(address) ||
+            address < 0 || address >= program.length) {
+          throw new Error("Destino de salto inválido.");
+        }
+
+        if (this.flags.zero) {
           this.PC = address;
         }
         break;
@@ -122,12 +192,6 @@ export class CPU8Bit {
 
       default:
         throw new Error(`Instrução desconhecida: ${op}`);
-    }
-  }
-
-  checkAddress(address) {
-    if (!Number.isInteger(address) || address < 0 || address > 255) {
-      throw new Error(`Endereço de memória inválido: ${address}`);
     }
   }
 
