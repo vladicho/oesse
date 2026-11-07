@@ -1,0 +1,57 @@
+
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Oesse — Teste da ULA</title>
+<style>
+body {
+  background: #101820;
+  color: #00ff9c;
+  font-family: Consolas, monospace;
+  padding: 25px;
+}
+pre {
+  background: #1b2935;
+  padding: 20px;
+  border: 1px solid #00ff9c;
+  white-space: pre-wrap;
+}
+</style>
+</head>
+<body>
+
+<h1>OESSE — DIAGNÓSTICO DA ULA</h1>
+<p>Unidade Lógica e Aritmética de 8 bits</p>
+<pre id="results">Executando testes...</pre>
+
+<script type="module">
+import { ALU8Bit } from "./src/alu.js";
+
+const alu = new ALU8Bit();
+
+const tests = [
+  ["ADD", 10, 20],
+  ["SUB", 20, 10],
+  ["AND", 12, 10],
+  ["OR", 12, 10],
+  ["XOR", 12, 10],
+  ["NOT", 12]
+];
+
+let report = "";
+
+for (const [operation, a, b] of tests) {
+  const result = alu.execute(operation, a, b);
+
+  report +=
+    `${operation}: ${result.result}\n` +
+    `Binário: ${result.result.toString(2).padStart(8, "0")}\n` +
+    `Flags: ${JSON.stringify(result.flags)}\n\n`;
+}
+
+document.getElementById("results").textContent = report;
+</script>
+
+</body>
+</html>
