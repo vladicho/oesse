@@ -2,125 +2,180 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Oesse — Virtual Computer</title>
-
-  <style>
-    body {
-      background: #101820;
-      color: #00ff9c;
-      font-family: Consolas, monospace;
-      padding: 30px;
-    }
-
-    h1 { color: #00ff9c; }
-
-    .panel {
-      background: #1b2935;
-      border: 1px solid #00ff9c;
-      border-radius: 8px;
-      padding: 20px;
-      margin: 15px 0;
-    }
-
-    button {
-      background: #00ff9c;
-      color: #101820;
-      border: 0;
-      padding: 12px 20px;
-      margin-right: 10px;
-      cursor: pointer;
-      font-weight: bold;
-    }
-
-    pre { white-space: pre-wrap; }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Oesse — Virtual Computer</title>
+<style>
+body {
+  background: #101820;
+  color: #00ff9c;
+  font-family: Consolas, monospace;
+  padding: 24px;
+}
+.panel {
+  background: #1b2935;
+  border: 1px solid #00ff9c;
+  border-radius: 8px;
+  padding: 16px;
+  margin: 14px 0;
+}
+button {
+  background: #00ff9c;
+  color: #101820;
+  border: 0;
+  padding: 12px 16px;
+  margin: 5px;
+  cursor: pointer;
+  font-weight: bold;
+}
+button:disabled {
+  opacity: .4;
+  cursor: not-allowed;
+}
+pre { white-space: pre-wrap; }
+.active { color: white; }
+</style>
 </head>
-
 <body>
-  <h1>OESSE — VIRTUAL COMPUTER</h1>
-  <p>Computador virtual experimental de 8 bits</p>
 
-  <div class="panel">
-    <h2>CPU</h2>
-    <p>Status: <span id="status">DESLIGADA</span></p>
-    <p>Contador de programa: <span id="pc">0</span></p>
-  </div>
+<h1>OESSE — VIRTUAL COMPUTER</h1>
+<p>Computador virtual experimental de 8 bits</p>
 
-  <div class="panel">
-    <h2>Registradores</h2>
-    <pre id="registers">Aguardando execução...</pre>
-  </div>
+<div class="panel">
+<h2>CPU</h2>
+<p>Status: <span id="status">DESLIGADA</span></p>
+<p>PC: <span id="pc">0</span></p>
+<p>Ciclo: <span id="cycle">0</span></p>
+<p>Fase: <span id="phase">AGUARDANDO</span></p>
+<p>Instrução: <span id="instruction">—</span></p>
+</div>
 
-  <div class="panel">
-    <h2>Memória RAM</h2>
-    <pre id="memory">RAM aguardando...</pre>
-  </div>
+<div class="panel">
+<h2>Registradores</h2>
+<pre id="registers"></pre>
+</div>
 
-  <div class="panel">
-    <h2>Saída da CPU</h2>
-    <pre id="output">Nenhuma saída.</pre>
-  </div>
+<div class="panel">
+<h2>Memória RAM</h2>
+<pre id="memory"></pre>
+</div>
 
-  <div class="panel">
-    <button id="run">LIGAR E EXECUTAR</button>
-    <button id="reset">REINICIAR</button>
-  </div>
+<div class="panel">
+<h2>Saída</h2>
+<pre id="output"></pre>
+</div>
 
-  <script type="module">
-    import { CPU8Bit } from "./src/cpu.js";
+<div class="panel">
+<h2>Controle</h2>
+<button id="start">INICIAR</button>
+<button id="next" disabled>PRÓXIMO CICLO</button>
+<button id="run" disabled>EXECUTAR TUDO</button>
+<button id="reset">REINICIAR</button>
+</div>
 
-    let cpu;
+<script type="module">
+import { CPU8Bit } from "./src/cpu.js";
 
-    function resetCPU() {
-      cpu = new CPU8Bit();
+const program = [
+  ["LOAD", "R1", 10],
+  ["LOAD", "R2", 20],
+  ["ADD", "R3", "R1", "R2"],
+  ["STORE", 100, "R3"],
+  ["PRINT", "R3"],
+  ["HALT"]
+];
 
-      document.getElementById("status").textContent = "DESLIGADA";
-      document.getElementById("pc").textContent = "0";
-      document.getElementById("registers").textContent = "Aguardando execução...";
-      document.getElementById("memory").textContent = "RAM aguardando...";
-      document.getElementById("output").textContent = "Nenhuma saída.";
+let cpu;
+let cycle;
+let phase;
+let currentInstruction;
+
+const $ = id => document.getElementById(id);
+
+function refresh() {
+  $("status").textContent = cpu.halted ? "HALT" : "EM EXECUÇÃO";
+  $("pc").textContent = cpu.PC;
+  $("cycle").textContent = cycle;
+  $("phase").textContent = phase;
+  $("instruction").textContent =
+    currentInstruction ? JSON.stringify(currentInstruction) : "—";
+
+  $("registers").textContent =
+    JSON.stringify(cpu.registers, null, 2);
+
+  $("memory").textContent =
+    `RAM[100] = ${cpu.memory[100]}`;
+
+  $("output").textContent =
+    cpu.output.join("\n") || "Nenhuma saída.";
+
+  $("next").disabled = cpu.halted || phase === "EXECUTE";
+  $("run").disabled = cpu.halted;
+}
+
+function reset() {
+  cpu = new CPU8Bit();
+  cycle = 0;
+  phase = "AGUARDANDO";
+  currentInstruction = null;
+
+  $("start").disabled = false;
+  refresh();
+}
+
+function start() {
+  reset();
+  phase = "PRONTO";
+  $("start").disabled = true;
+  refresh();
+}
+
+function nextStep() {
+  if (cpu.halted) return;
+
+  if (phase === "PRONTO" || phase === "EXECUTE") {
+    currentInstruction = program[cpu.PC];
+
+    if (!currentInstruction) {
+      cpu.halted = true;
+      phase = "HALT";
+      refresh();
+      return;
     }
 
-    document.getElementById("run").addEventListener("click", () => {
-      resetCPU();
+    phase = "FETCH";
+  } else if (phase === "FETCH") {
+    phase = "DECODE";
+  } else if (phase === "DECODE") {
+    phase = "EXECUTE";
+    try {
+      cpu.step(program);
+      cycle++;
+      phase = cpu.halted ? "HALT" : "PRONTO";
+    } catch (error) {
+      cpu.halted = true;
+      phase = "ERRO: " + error.message;
+    }
+  }
 
-      const program = [
-        ["LOAD", "R1", 10],
-        ["LOAD", "R2", 20],
-        ["ADD", "R3", "R1", "R2"],
-        ["STORE", 100, "R3"],
-        ["PRINT", "R3"],
-        ["HALT"]
-      ];
+  refresh();
+}
 
-      try {
-        const result = cpu.run(program);
+function runAll() {
+  let safety = 0;
 
-        document.getElementById("status").textContent =
-          result.halted ? "DESLIGADA — HALT" : "EM EXECUÇÃO";
+  while (!cpu.halted && safety < 1000) {
+    nextStep();
+    safety++;
+  }
+}
 
-        document.getElementById("pc").textContent = result.PC;
+$("start").addEventListener("click", start);
+$("next").addEventListener("click", nextStep);
+$("run").addEventListener("click", runAll);
+$("reset").addEventListener("click", reset);
 
-        document.getElementById("registers").textContent =
-          JSON.stringify(result.registers, null, 2);
-
-        document.getElementById("memory").textContent =
-          "Endereço 100: " + result.memory[100];
-
-        document.getElementById("output").textContent =
-          result.output.join("\n");
-
-      } catch (error) {
-        document.getElementById("status").textContent = "ERRO";
-        document.getElementById("output").textContent = error.message;
-      }
-    });
-
-    document.getElementById("reset").addEventListener("click", resetCPU);
-
-    resetCPU();
-  </script>
+reset();
+</script>
 </body>
 </html>
