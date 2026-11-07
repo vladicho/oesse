@@ -1,0 +1,126 @@
+
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Oesse — Virtual Computer</title>
+
+  <style>
+    body {
+      background: #101820;
+      color: #00ff9c;
+      font-family: Consolas, monospace;
+      padding: 30px;
+    }
+
+    h1 { color: #00ff9c; }
+
+    .panel {
+      background: #1b2935;
+      border: 1px solid #00ff9c;
+      border-radius: 8px;
+      padding: 20px;
+      margin: 15px 0;
+    }
+
+    button {
+      background: #00ff9c;
+      color: #101820;
+      border: 0;
+      padding: 12px 20px;
+      margin-right: 10px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+
+    pre { white-space: pre-wrap; }
+  </style>
+</head>
+
+<body>
+  <h1>OESSE — VIRTUAL COMPUTER</h1>
+  <p>Computador virtual experimental de 8 bits</p>
+
+  <div class="panel">
+    <h2>CPU</h2>
+    <p>Status: <span id="status">DESLIGADA</span></p>
+    <p>Contador de programa: <span id="pc">0</span></p>
+  </div>
+
+  <div class="panel">
+    <h2>Registradores</h2>
+    <pre id="registers">Aguardando execução...</pre>
+  </div>
+
+  <div class="panel">
+    <h2>Memória RAM</h2>
+    <pre id="memory">RAM aguardando...</pre>
+  </div>
+
+  <div class="panel">
+    <h2>Saída da CPU</h2>
+    <pre id="output">Nenhuma saída.</pre>
+  </div>
+
+  <div class="panel">
+    <button id="run">LIGAR E EXECUTAR</button>
+    <button id="reset">REINICIAR</button>
+  </div>
+
+  <script type="module">
+    import { CPU8Bit } from "./src/cpu.js";
+
+    let cpu;
+
+    function resetCPU() {
+      cpu = new CPU8Bit();
+
+      document.getElementById("status").textContent = "DESLIGADA";
+      document.getElementById("pc").textContent = "0";
+      document.getElementById("registers").textContent = "Aguardando execução...";
+      document.getElementById("memory").textContent = "RAM aguardando...";
+      document.getElementById("output").textContent = "Nenhuma saída.";
+    }
+
+    document.getElementById("run").addEventListener("click", () => {
+      resetCPU();
+
+      const program = [
+        ["LOAD", "R1", 10],
+        ["LOAD", "R2", 20],
+        ["ADD", "R3", "R1", "R2"],
+        ["STORE", 100, "R3"],
+        ["PRINT", "R3"],
+        ["HALT"]
+      ];
+
+      try {
+        const result = cpu.run(program);
+
+        document.getElementById("status").textContent =
+          result.halted ? "DESLIGADA — HALT" : "EM EXECUÇÃO";
+
+        document.getElementById("pc").textContent = result.PC;
+
+        document.getElementById("registers").textContent =
+          JSON.stringify(result.registers, null, 2);
+
+        document.getElementById("memory").textContent =
+          "Endereço 100: " + result.memory[100];
+
+        document.getElementById("output").textContent =
+          result.output.join("\n");
+
+      } catch (error) {
+        document.getElementById("status").textContent = "ERRO";
+        document.getElementById("output").textContent = error.message;
+      }
+    });
+
+    document.getElementById("reset").addEventListener("click", resetCPU);
+
+    resetCPU();
+  </script>
+</body>
+</html>
