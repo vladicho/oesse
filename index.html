@@ -130,24 +130,24 @@ function start() {
   refresh();
 }
 
+
 function nextStep() {
   if (cpu.halted) return;
 
-  if (phase === "PRONTO" || phase === "EXECUTE") {
+  if (phase === "PRONTO") {
     currentInstruction = program[cpu.PC];
 
     if (!currentInstruction) {
       cpu.halted = true;
       phase = "HALT";
-      refresh();
-      return;
+    } else {
+      phase = "FETCH";
     }
-
-    phase = "FETCH";
   } else if (phase === "FETCH") {
     phase = "DECODE";
   } else if (phase === "DECODE") {
     phase = "EXECUTE";
+  } else if (phase === "EXECUTE") {
     try {
       cpu.step(program);
       cycle++;
